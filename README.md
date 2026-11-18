@@ -1,47 +1,48 @@
-# SwinSR-Defense — reproducción piloto
+# Feature Squeezing — reproducción acotada
 
-Este repositorio reúne el código del piloto local presentado en Semana 13. Ejecuta una parte del flujo del artículo: generar un ejemplo MI-FGSM, ajustar SwinIR con una pareja adversaria–limpia y volver a clasificar la reconstrucción con ResNet-50.
+Proyecto de reproducción de un experimento del artículo de Xu, Evans y Qi presentado en NDSS 2018. Reproduce el protocolo de MNIST con la CNN de siete capas, FGSM con ε = 0.3 y reducción de profundidad a 1 bit. La réplica se implementa en PyTorch a partir de la arquitectura y configuración publicadas en el artículo y en el código original.
 
-## Resultado documentado
+## Qué implementa
 
-- Imagen: autobús escolar de ImageNet, 224 × 224.
-- Clasificador: ResNet-50 con pesos TorchVision IMAGENET1K_V2.
-- Ataque: MI-FGSM, ε = 5/255, 10 pasos.
-- Resultado: `school bus` → `sundial` → `school bus` en la muestra del piloto.
-- Reconstruidor: arquitectura SwinIR del cuaderno público de los autores; ajuste durante 35 épocas con una pareja y pérdida MSE.
-- Pérdida de entrenamiento: 0.1030277 → 0.0028985.
+1. Entrena en MNIST el modelo con la arquitectura y los hiperparámetros del repositorio original de los autores.
+2. Genera ejemplos FGSM sobre las imágenes de prueba con ε = 0.3; recorta los píxeles a [0, 1] y los cuantiza a 8 bits, como especifica la sección experimental del artículo.
+3. Compara la clasificación de la imagen atacada antes y después del filtro binario de 1 bit.
+4. Calcula la puntuación L1 entre las distribuciones softmax de la imagen y su versión filtrada.
+5. Usa 500 pares limpios/adversarios para calibración y 500 pares para validación. El umbral se fija con imágenes limpias de calibración para buscar una tasa de falsos positivos de 5%.
+6. Guarda métricas y una visualización limpia → FGSM → filtrada.
 
-**Alcance:** demostración de una muestra. La pareja mostrada se usó también durante el ajuste. El resultado no mide generalización, exactitud robusta ni constituye una reproducción completa del artículo.
+Esta es una reproducción acotada de las pruebas FGSM/1-bit del artículo, no de sus once variantes de ataque ni de CIFAR-10 e ImageNet. Se eligen los primeros 100 ejemplos de prueba clasificados correctamente, como indica el protocolo para la tabla de robustez. La corrida local alcanzó 99.25% de exactitud en todo MNIST; en los 100 ejemplos seleccionados, 3% se clasificaron correctamente bajo FGSM y 92% después del filtro de 1 bit. El artículo reporta 99.43% de exactitud limpia, 54% bajo FGSM y 92% con el filtro; en imágenes limpias filtradas reporta 99.33% (Tablas 1 y 3). La exactitud tras el filtro coincide, pero la exactitud bajo FGSM difiere. Por ello, no afirmamos una reproducción numérica completa: se reproduce el flujo y los parámetros de esa prueba con pesos reentrenados localmente. La corrida incluye esa diferencia para su análisis.
 
-## Ejecutar
+## Ejecución
 
-1. Instala Python y una combinación compatible de PyTorch y torchvision para tu equipo. Se usó Python 3.13, PyTorch 2.14.1+cu126, torchvision 0.29.1+cu126 y una RTX 3050 de 6 GB. CPU también es posible, pero será más lento.
-2. Instala `numpy` y `Pillow` además de PyTorch y torchvision.
-3. Coloca tus copias locales autorizadas de las imágenes en `data/` con estos nombres:
-   - `school_bus_source.png`
-   - `toaster_source.png`
-4. Descarga el cuaderno de arquitectura de los autores desde el repositorio enlazado abajo y guárdalo como `third_party/SwinSR-Defense_Autores.ipynb`. No está incluido aquí.
-5. Desde la raíz del repositorio, ejecuta:
+Desde la raíz del proyecto, instala las dependencias y ejecuta:
 
 ```powershell
-python .\src\01_mifgsm_attack.py
-python .\src\02_train_swinir.py
+python -m pip install -r requirements.txt
+python .\src\replicate_mnist_fgsm.py
 ```
 
-El primer script descarga automáticamente los pesos de ResNet-50 la primera vez, genera los ejemplos y guarda `results/attack_results.json`. El segundo carga la arquitectura SwinIR del cuaderno de autores, entrena el piloto y guarda el checkpoint local, la curva CSV y los resultados. El checkpoint y las imágenes no se suben a Git.
+La primera corrida descarga MNIST y entrena el modelo por 100 épocas. Las corridas siguientes reutilizan el checkpoint guardado localmente. Se usa GPU CUDA cuando está disponible; también se puede forzar CPU con `--device cpu`.
 
-## Estructura
+## Resultados generados
 
-- `src/01_mifgsm_attack.py`: crea los ejemplos y registra las predicciones.
-- `src/02_train_swinir.py`: ajusta SwinIR y clasifica la reconstrucción.
-- `results/`: métricas registradas de la corrida ya ejecutada.
-- `data/`: datos locales; no se versionan.
-- `third_party/`: espacio para el cuaderno consultado de los autores; no se versiona.
+- `results/metrics.json`: resultados, parámetros y alcance de la reproducción.
+- `results/metrics.csv`: métricas en formato tabular.
+- `results/training_history.csv`: pérdida y exactitud por época.
+- `results/mnist_cnn_paper_architecture.pt`: checkpoint local; no subir a Git.
+- `results/mnist_fgsm_feature_squeezing.png`: ejemplo visual.
+- `presentation/FeatureSqueezing_Semana13_Pitch.pptx`: diapositivas del pitch con la Figura 1 original del artículo.
 
-## Procedencia
+En la corrida local, la exactitud limpia de prueba fue 99.25%. En los 100 ejemplos de robustez seleccionados, los aciertos bajo FGSM fueron 3% sin el filtro y 92% tras el filtro. Para el detector, se calibró con 500 imágenes limpias; en validación se obtuvo FPR de 6.8%, tasa de detección de ataques exitosos de 100% y AUC de 0.999972. La figura con el 7 muestra un caso individual, no el resultado agregado.
 
-Este trabajo se basa en Gulsoy, E. K., Gulsoy, T., Ayas, S., & Baykal Kablan, E. (2026), *SwinSR-Defense: Swin transformer with super-resolution capability for adversarial robustness*, *Applied Soft Computing, 203*, 116135. https://doi.org/10.1016/j.asoc.2026.116135
+## Fuentes primarias
 
-Repositorio de código original: https://github.com/TolgahanGulsoy/SwinSR-Defense
+- Xu, W., Evans, D., & Qi, Y. (2018). *Feature Squeezing: Detecting Adversarial Examples in Deep Neural Networks*. Network and Distributed System Security Symposium (NDSS).
+- Artículo completo: https://arxiv.org/abs/1704.01155
+- Repositorio original: https://github.com/QData/FeatureSqueezing
+- Arquitectura MNIST de CleverHans v1.0.0 utilizada por el artículo: https://github.com/cleverhans-lab/cleverhans/blob/v1.0.0/cleverhans/utils_mnist.py
+- Figura 1 original: incluida en la presentación con atribución al artículo.
 
-Los archivos de arquitectura y datos de terceros no se redistribuyen en este repositorio. Consulta sus fuentes y condiciones antes de reutilizarlos.
+## Nota de fidelidad
+
+La implementación traslada a PyTorch la arquitectura, normalización, suavizado de etiquetas, optimizador, hiperparámetros, filtro de 1 bit y construcción FGSM documentados en el artículo y el repositorio original. El artículo indica que las imágenes adversarias se recortan a [0,1] y cuantizan a 8 bits; el helper publicado no muestra ese paso, así que la réplica sigue la descripción del artículo. Se moderniza TensorFlow/Keras de 2018 a PyTorch para ejecutar el protocolo en el entorno disponible. Se entrena localmente la CNN con la configuración del paper; no se usa el checkpoint de los autores. El artículo publica código y enlace de descarga del modelo, pero el enlace del checkpoint respondió con acceso denegado en esta sesión. El SwinIR y sus resultados no se reutilizan.

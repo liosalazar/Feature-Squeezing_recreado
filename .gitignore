@@ -1,11 +1,7 @@
+data/
+paper/*.pdf
+results/*.pt
+results/*.pth
+results/*.ckpt
 __pycache__/
-.model_cache/
-.venv*/
-*.py[cod]
-*.pth
-data/*.png
-data/*.jpg
-data/*.jpeg
-third_party/*.ipynb
-results/*.png
-results/*.jpg
+*.pyc
