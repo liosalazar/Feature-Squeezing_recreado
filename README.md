@@ -15,6 +15,8 @@ Esta es una reproducción acotada de las pruebas FGSM/1-bit del artículo, no de
 
 ## Ejecución
 
+En Windows, inicia el experimento con doble clic en `EJECUTAR_EXPERIMENTO.bat`. El lanzador usa el entorno de Python disponible o crea uno local e instala las dependencias si hace falta. Al terminar, abre la visualización generada; las métricas se guardan en `results/`.
+
 Desde la raíz del proyecto, instala las dependencias y ejecuta:
 
 ```powershell
