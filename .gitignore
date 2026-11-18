@@ -1,4 +1,5 @@
 data/
+.venv/
 paper/*.pdf
 results/*.pt
 results/*.pth
