@@ -1,0 +1,29 @@
+{
+  "image": "school bus",
+  "attack": "MI-FGSM",
+  "epsilon": "5/255",
+  "steps": 10,
+  "training_pairs": 1,
+  "epochs": 35,
+  "batch_size": 1,
+  "optimizer": "AdamW",
+  "learning_rate": 0.0001,
+  "weight_decay": 0.05,
+  "loss": "MSE",
+  "mse_first_epoch": 0.10302766412496567,
+  "mse_last_epoch": 0.002898546401411295,
+  "training_seconds": 19.97,
+  "pred_clean": [
+    "school bus",
+    0.5215564966201782
+  ],
+  "pred_adversarial": [
+    "sundial",
+    0.007256650365889072
+  ],
+  "pred_after_pilot_training": [
+    "school bus",
+    0.2518467605113983
+  ],
+  "warning": "Single-pair in-sample demonstration; not a robust-accuracy estimate or full paper reproduction."
+}

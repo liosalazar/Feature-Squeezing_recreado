@@ -1,0 +1,30 @@
+[
+  {
+    "image": "school_bus",
+    "ground_truth": "school bus",
+    "clean_prediction": "school bus",
+    "clean_top1_confidence": 0.5215564966201782,
+    "attack": "MI-FGSM",
+    "epsilon": 0.0196078431372549,
+    "steps": 10,
+    "adversarial_prediction": "sundial",
+    "adversarial_top1_confidence": 0.007262281142175198,
+    "clean_correct": true,
+    "attack_success": true,
+    "measured_linf": 0.019607871770858765
+  },
+  {
+    "image": "toaster",
+    "ground_truth": "toaster",
+    "clean_prediction": "espresso maker",
+    "clean_top1_confidence": 0.12441829591989517,
+    "attack": "MI-FGSM",
+    "epsilon": 0.0196078431372549,
+    "steps": 10,
+    "adversarial_prediction": "projector",
+    "adversarial_top1_confidence": 0.9999325275421143,
+    "clean_correct": false,
+    "attack_success": false,
+    "measured_linf": 0.019607871770858765
+  }
+]

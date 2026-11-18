@@ -1,0 +1,1 @@
+El script de entrenamiento lee la arquitectura SwinIR de la segunda celda del cuaderno público de los autores. Descarga ese cuaderno desde https://github.com/TolgahanGulsoy/SwinSR-Defense y guárdalo localmente como `SwinSR-Defense_Autores.ipynb` en esta carpeta. No lo subas dentro de este repositorio.
