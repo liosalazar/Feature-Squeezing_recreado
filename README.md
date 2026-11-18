@@ -31,7 +31,6 @@ La primera corrida descarga MNIST y entrena el modelo por 100 épocas. Las corri
 - `results/training_history.csv`: pérdida y exactitud por época.
 - `results/mnist_cnn_paper_architecture.pt`: checkpoint local; no subir a Git.
 - `results/mnist_fgsm_feature_squeezing.png`: ejemplo visual.
-- `presentation/FeatureSqueezing_Semana13_Pitch.pptx`: diapositivas del pitch con la Figura 1 original del artículo.
 
 En la corrida local, la exactitud limpia de prueba fue 99.25%. En los 100 ejemplos de robustez seleccionados, los aciertos bajo FGSM fueron 3% sin el filtro y 92% tras el filtro. Para el detector, se calibró con 500 imágenes limpias; en validación se obtuvo FPR de 6.8%, tasa de detección de ataques exitosos de 100% y AUC de 0.999972. La figura con el 7 muestra un caso individual, no el resultado agregado.
 
