@@ -125,6 +125,17 @@ def fgsm_paper(model: nn.Module, x: torch.Tensor, epsilon: float) -> torch.Tenso
     return (x_adv * 255.0).round().div(255.0).detach()
 
 
+def fgsm_paper_batched(
+    model: nn.Module, x: torch.Tensor, epsilon: float, batch_size: int = 256
+) -> torch.Tensor:
+    """Run the reference FGSM construction in batches to bound GPU memory."""
+    return torch.cat(
+        [fgsm_paper(model, x[start:start + batch_size], epsilon)
+         for start in range(0, len(x), batch_size)],
+        dim=0,
+    )
+
+
 def binary_squeeze(x: torch.Tensor) -> torch.Tensor:
     """Paper's 1-bit filter: round each grayscale pixel to 0 or 1 at 0.5."""
     return (x > 0.5).to(x.dtype)
@@ -144,18 +155,35 @@ def scores_l1(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
     return (p_raw - p_sq).abs().sum(dim=1)
 
 
-def threshold_at_fpr(clean_scores: torch.Tensor, max_fpr: float = 0.05) -> float:
-    # Threshold is selected using legitimate calibration data only, as in Sec. 5-B.
-    values = torch.sort(clean_scores.flatten()).values
-    index = min(int(np.floor((1.0 - max_fpr) * len(values))), len(values) - 1)
-    return float(values[index].item())
+def threshold_for_best_accuracy(scores: np.ndarray, labels: np.ndarray) -> tuple[float, float]:
+    """Select the L1 cutoff that maximizes training accuracy, as in the paper code."""
+    scores = np.asarray(scores, dtype=np.float64).reshape(-1)
+    labels = np.asarray(labels, dtype=np.int64).reshape(-1)
+    order = np.argsort(scores, kind="mergesort")
+    sorted_scores = scores[order]
+    sorted_labels = labels[order]
+    positive_prefix = np.cumsum(sorted_labels)
+    negative_prefix = np.cumsum(1 - sorted_labels)
+
+    candidates = np.unique(sorted_scores)
+    cuts = np.searchsorted(sorted_scores, candidates, side="right")
+    true_negative = np.where(cuts > 0, negative_prefix[np.maximum(cuts - 1, 0)], 0)
+    true_positive = int(sorted_labels.sum()) - np.where(
+        cuts > 0, positive_prefix[np.maximum(cuts - 1, 0)], 0
+    )
+    accuracy = (true_negative + true_positive) / len(labels)
+    best = int(np.argmax(accuracy))
+    return float(candidates[best]), float(accuracy[best])
 
 
 def roc_auc(scores: np.ndarray, labels: np.ndarray) -> float:
     # Mann-Whitney/rank form; no external metrics package is needed.
     order = np.argsort(scores, kind="mergesort")
     ranks = np.empty(len(scores), dtype=np.float64)
-    ranks[order] = np.arange(1, len(scores) + 1)
+    # Assign the mean rank to tied scores so AUC is independent of row order.
+    sorted_scores = np.asarray(scores)[order]
+    _, starts, counts = np.unique(sorted_scores, return_index=True, return_counts=True)
+    ranks[order] = np.repeat(starts + (counts + 1) / 2.0, counts)
     n_pos = int(labels.sum())
     n_neg = len(labels) - n_pos
     if not n_pos or not n_neg:
@@ -176,9 +204,11 @@ def save_visual(x: torch.Tensor, x_clean_sq: torch.Tensor, x_adv: torch.Tensor,
     font_title = ImageFont.truetype(font_path, 18)
     font_body = ImageFont.truetype(font_path, 17)
     font_footer = ImageFont.truetype(font_path, 18)
+    clean_state = "RECHAZADA" if clean_score > threshold else "ACEPTADA"
+    adv_state = "RECHAZADA" if adv_score > threshold else "ACEPTADA"
     cards = [
-        (24, "Imagen legítima", x, x_clean_sq, pred_clean, pred_clean_sq, clean_score, "ACEPTADA"),
-        (568, "Imagen FGSM (ε = 0.3)", x_adv, x_adv_sq, pred_adv, pred_adv_sq, adv_score, "RECHAZADA"),
+        (24, "Imagen legítima", x, x_clean_sq, pred_clean, pred_clean_sq, clean_score, clean_state),
+        (568, "Imagen FGSM (ε = 0.3)", x_adv, x_adv_sq, pred_adv, pred_adv_sq, adv_score, adv_state),
     ]
     for ox, title, before, after, pred_before, pred_after, score, status in cards:
         draw.rounded_rectangle((ox, 18, ox + 528, 374), radius=14, fill="white", outline=(220, 226, 234), width=2)
@@ -193,17 +223,54 @@ def save_visual(x: torch.Tensor, x_clean_sq: torch.Tensor, x_adv: torch.Tensor,
             draw.text((tx, ty + tile_size + 31), f"Predicción: {pred} | real: {label}", fill=(45, 57, 74), font=font_body)
         relation = "≤" if score <= threshold else ">"
         draw.text((ox + 18, 352), f"Puntaje L1={score:.4f} {relation} umbral {threshold:.4f} → {status}", fill=(45, 57, 74), font=font_body)
-    clean_state = "RECHAZADA" if clean_score > threshold else "ACEPTADA"
-    adv_state = "RECHAZADA" if adv_score > threshold else "SOSPECHOSA / RECHAZADA"
     draw.text((25, 393), f"La regla compara la salida del mismo clasificador antes y después del filtro. Umbral L1={threshold:.4f}", fill=(18, 39, 72), font=font_footer)
     panel.save(RESULTS_DIR / "mnist_fgsm_feature_squeezing.png")
+
+
+def save_epsilon_sweep_plot(points: list[dict[str, float]]) -> None:
+    """Render the FGSM robustness sweep for the same 100 clean seed images."""
+    width, height = 1000, 580
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.truetype(r"C:\Windows\Fonts\arial.ttf", 19)
+    font_small = ImageFont.truetype(r"C:\Windows\Fonts\arial.ttf", 15)
+    font_title = ImageFont.truetype(r"C:\Windows\Fonts\arialbd.ttf", 24)
+    left, top, right, bottom = 115, 85, 945, 465
+    draw.text((left, 24), "MNIST · FGSM y reducción a 1 bit", fill=(24, 39, 61), font=font_title)
+
+    for percent in range(0, 101, 20):
+        y_pos = bottom - (bottom - top) * percent / 100
+        draw.line((left, y_pos, right, y_pos), fill=(224, 230, 237), width=1)
+        draw.text((48, y_pos - 9), f"{percent}%", fill=(74, 85, 101), font=font_small)
+    draw.line((left, top, left, bottom), fill=(100, 112, 128), width=2)
+    draw.line((left, bottom, right, bottom), fill=(100, 112, 128), width=2)
+    draw.text((left + 270, 510), "Épsilon de FGSM", fill=(45, 57, 74), font=font)
+    draw.text((left - 25, bottom + 15), "0,0", fill=(74, 85, 101), font=font_small)
+    draw.text((right - 20, bottom + 15), "1,0", fill=(74, 85, 101), font=font_small)
+
+    colors = {"accuracy_raw": (235, 76, 52), "accuracy_after_1bit": (35, 112, 190)}
+    labels = {"accuracy_raw": "Sin filtro", "accuracy_after_1bit": "Después de reducir a 1 bit"}
+    for key, color in colors.items():
+        coords = []
+        for point in points:
+            x_pos = left + (right - left) * point["epsilon"]
+            y_pos = bottom - (bottom - top) * point[key] / 100
+            coords.append((x_pos, y_pos))
+        draw.line(coords, fill=color, width=4)
+        for x_pos, y_pos in coords:
+            draw.ellipse((x_pos - 5, y_pos - 5, x_pos + 5, y_pos + 5), fill=color)
+    draw.line((left + 20, 555, left + 60, 555), fill=colors["accuracy_raw"], width=4)
+    draw.text((left + 70, 544), labels["accuracy_raw"], fill=(45, 57, 74), font=font_small)
+    draw.line((left + 230, 555, left + 270, 555), fill=colors["accuracy_after_1bit"], width=4)
+    draw.text((left + 280, 544), labels["accuracy_after_1bit"], fill=(45, 57, 74), font=font_small)
+    image.save(RESULTS_DIR / "mnist_fgsm_epsilon_sweep.png")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--sample-count", type=int, default=1000,
-                        help="Number of correctly classified MNIST test images for the detector experiment.")
+    parser.add_argument("--sample-count", type=int, default=10000,
+                        help="Number of MNIST test images for the FGSM detector experiment (paper code uses 10,000).")
     args = parser.parse_args()
     set_seed()
     DATA_DIR.mkdir(exist_ok=True)
@@ -213,9 +280,9 @@ def main() -> None:
     x_train, y_train, x_test, y_test = load_mnist(device)
     model = make_model(device)
 
-    # The paper's robustness table selects the first 100 correctly classified
-    # test images. Its detector experiment uses 1,000 clean and 1,000 adversarial
-    # samples, split in half for threshold fitting and validation.
+    # The robustness table selects the first 100 correctly classified examples.
+    # The authors' public FGSM detector code processes all 10,000 MNIST test
+    # images and divides them into consecutive halves for fitting/validation.
     clean_test_probs = predict_probs(model, x_test)
     correct_indices = torch.where(clean_test_probs.argmax(1) == y_test)[0]
     table_n = min(100, len(correct_indices))
@@ -223,10 +290,22 @@ def main() -> None:
     x_table, y_table = x_test[table_indices], y_test[table_indices]
     adv_table = fgsm_paper(model, x_table, 0.3)
     adv_table_binary = binary_squeeze(adv_table)
-    det_n = min(args.sample_count, len(correct_indices))
-    det_indices = correct_indices[:det_n]
+    epsilon_sweep = []
+    for epsilon in np.round(np.arange(0.0, 1.01, 0.1), 1):
+        adv_eps = fgsm_paper(model, x_table, float(epsilon)) if epsilon else x_table
+        with torch.no_grad():
+            pred_eps = predict_probs(model, adv_eps).argmax(1)
+            pred_eps_squeezed = predict_probs(model, binary_squeeze(adv_eps)).argmax(1)
+        epsilon_sweep.append({
+            "epsilon": float(epsilon),
+            "accuracy_raw": 100.0 * float((pred_eps == y_table).float().mean().item()),
+            "accuracy_after_1bit": 100.0 * float((pred_eps_squeezed == y_table).float().mean().item()),
+        })
+    save_epsilon_sweep_plot(epsilon_sweep)
+    det_n = min(args.sample_count, len(x_test))
+    det_indices = torch.arange(det_n, device=device)
     x, y = x_test[det_indices], y_test[det_indices]
-    x_adv = fgsm_paper(model, x, 0.3)
+    x_adv = fgsm_paper_batched(model, x, 0.3)
     x_binary = binary_squeeze(x_adv)
     clean_binary = binary_squeeze(x)
     with torch.no_grad():
@@ -237,17 +316,49 @@ def main() -> None:
         scores_clean_all = (clean_probs - clean_binary_probs).abs().sum(1)
         scores_adv_all = (adv_probs - binary_probs).abs().sum(1)
 
-    # Separate 50/50 fit and validation portions; threshold uses clean calibration only.
+    # The authors' public FGSM detector code selects one threshold from clean
+    # examples plus adversarial examples at epsilon 0.1, 0.2, and 0.3.
     split = max(1, det_n // 2)
-    calibration_scores = scores_clean_all[:split]
-    threshold = threshold_at_fpr(calibration_scores, 0.05)
+    detector_epsilons = (0.1, 0.2, 0.3)
+    scores_by_epsilon = {0.3: scores_adv_all}
+    predictions_by_epsilon = {0.3: adv_probs.argmax(1)}
+    for epsilon in detector_epsilons[:-1]:
+        x_adv_eps = fgsm_paper_batched(model, x, epsilon)
+        with torch.no_grad():
+            p_adv = predict_probs(model, x_adv_eps)
+            p_adv_squeezed = predict_probs(model, binary_squeeze(x_adv_eps))
+        scores_by_epsilon[epsilon] = (p_adv - p_adv_squeezed).abs().sum(1)
+        predictions_by_epsilon[epsilon] = p_adv.argmax(1)
+
+    calibration_scores = torch.cat(
+        [scores_clean_all[:split]]
+        + [scores_by_epsilon[eps][:split] for eps in detector_epsilons]
+    ).cpu().numpy()
+    calibration_labels = np.concatenate(
+        [np.zeros(split, dtype=np.int64)]
+        + [np.ones(split, dtype=np.int64) for _ in detector_epsilons]
+    )
+    threshold, threshold_train_accuracy = threshold_for_best_accuracy(
+        calibration_scores, calibration_labels
+    )
     clean_eval_scores = scores_clean_all[split:]
     adv_eval_scores = scores_adv_all[split:]
-    raw_pred = adv_probs.argmax(1)
-    successful = raw_pred[split:] != y[split:]
+    raw_pred = predictions_by_epsilon[0.3]
+    clean_correct = clean_probs.argmax(1) == y
+    successful = clean_correct[split:] & (raw_pred[split:] != y[split:])
     fp_rate = float((clean_eval_scores > threshold).float().mean().item()) if len(clean_eval_scores) else float("nan")
     det_rate_all_adv = float((adv_eval_scores > threshold).float().mean().item()) if len(adv_eval_scores) else float("nan")
     det_rate_successful = float((adv_eval_scores[successful] > threshold).float().mean().item()) if successful.any() else float("nan")
+    detection_rates_by_epsilon = {}
+    for epsilon in detector_epsilons:
+        eps_scores = scores_by_epsilon[epsilon][split:]
+        eps_success = clean_correct[split:] & (predictions_by_epsilon[epsilon][split:] != y[split:])
+        detection_rates_by_epsilon[f"{epsilon:.1f}"] = {
+            "all_adversarial": float((eps_scores > threshold).float().mean().item()),
+            "successful_only": float((eps_scores[eps_success] > threshold).float().mean().item())
+            if eps_success.any() else float("nan"),
+            "successful_count": int(eps_success.sum().item()),
+        }
     auc_labels = np.concatenate([np.zeros(len(clean_eval_scores), dtype=int), np.ones(len(adv_eval_scores), dtype=int)])
     auc_scores = np.concatenate([clean_eval_scores.cpu().numpy(), adv_eval_scores.cpu().numpy()])
 
@@ -261,14 +372,20 @@ def main() -> None:
         "table3_seed_clean_accuracy": accuracy(model, x_table, y_table),
         "table3_seed_fgsm_accuracy_without_squeezing": accuracy(model, adv_table, y_table),
         "table3_seed_fgsm_accuracy_after_1bit_squeezing": accuracy(model, adv_table_binary, y_table),
-        "detection_clean_adversarial_pairs": det_n,
+        "fgsm_epsilon_sweep_first_100_correct_seeds": epsilon_sweep,
+        "detector_protocol": "Train threshold on clean plus FGSM epsilon 0.1, 0.2, and 0.3; validate on held-out half.",
+        "detector_epsilons": list(detector_epsilons),
+        "detection_clean_adversarial_pairs_per_epsilon": det_n,
         "detection_calibration_count_clean": split,
+        "detection_calibration_count_adversarial": split * len(detector_epsilons),
+        "detection_threshold_training_accuracy": threshold_train_accuracy,
         "detection_evaluation_count_clean": len(clean_eval_scores),
-        "detection_evaluation_count_adversarial": len(adv_eval_scores),
-        "detection_threshold_clean_5pct_fpr": threshold,
+        "detection_evaluation_count_adversarial_per_epsilon": len(adv_eval_scores),
+        "detection_threshold_selected_on_training_split": threshold,
         "detection_false_positive_rate_clean": fp_rate,
         "detection_rate_all_adversarial": det_rate_all_adv,
         "detection_rate_successful_adversarial": det_rate_successful,
+        "detection_rates_by_epsilon": detection_rates_by_epsilon,
         "detection_roc_auc": roc_auc(auc_scores, auc_labels),
         "device": str(device),
         "seed": SEED,

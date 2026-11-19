@@ -8,15 +8,97 @@
   "table3_seed_clean_accuracy": 1.0,
   "table3_seed_fgsm_accuracy_without_squeezing": 0.029999999329447746,
   "table3_seed_fgsm_accuracy_after_1bit_squeezing": 0.9199999570846558,
-  "detection_clean_adversarial_pairs": 1000,
-  "detection_calibration_count_clean": 500,
-  "detection_evaluation_count_clean": 500,
-  "detection_evaluation_count_adversarial": 500,
-  "detection_threshold_clean_5pct_fpr": 0.09178183227777481,
-  "detection_false_positive_rate_clean": 0.06800000369548798,
-  "detection_rate_all_adversarial": 1.0,
-  "detection_rate_successful_adversarial": 1.0,
-  "detection_roc_auc": 0.999972,
+  "fgsm_epsilon_sweep_first_100_correct_seeds": [
+    {
+      "epsilon": 0.0,
+      "accuracy_raw": 100.0,
+      "accuracy_after_1bit": 100.0
+    },
+    {
+      "epsilon": 0.1,
+      "accuracy_raw": 62.00000047683716,
+      "accuracy_after_1bit": 98.99999499320984
+    },
+    {
+      "epsilon": 0.2,
+      "accuracy_raw": 14.000000059604645,
+      "accuracy_after_1bit": 97.99999594688416
+    },
+    {
+      "epsilon": 0.3,
+      "accuracy_raw": 2.9999999329447746,
+      "accuracy_after_1bit": 91.99999570846558
+    },
+    {
+      "epsilon": 0.4,
+      "accuracy_raw": 1.9999999552965164,
+      "accuracy_after_1bit": 87.00000047683716
+    },
+    {
+      "epsilon": 0.5,
+      "accuracy_raw": 0.9999999776482582,
+      "accuracy_after_1bit": 3.999999910593033
+    },
+    {
+      "epsilon": 0.6,
+      "accuracy_raw": 0.9999999776482582,
+      "accuracy_after_1bit": 3.999999910593033
+    },
+    {
+      "epsilon": 0.7,
+      "accuracy_raw": 0.9999999776482582,
+      "accuracy_after_1bit": 3.999999910593033
+    },
+    {
+      "epsilon": 0.8,
+      "accuracy_raw": 1.9999999552965164,
+      "accuracy_after_1bit": 3.999999910593033
+    },
+    {
+      "epsilon": 0.9,
+      "accuracy_raw": 3.999999910593033,
+      "accuracy_after_1bit": 3.999999910593033
+    },
+    {
+      "epsilon": 1.0,
+      "accuracy_raw": 3.999999910593033,
+      "accuracy_after_1bit": 3.999999910593033
+    }
+  ],
+  "detector_protocol": "Train threshold on clean plus FGSM epsilon 0.1, 0.2, and 0.3; validate on held-out half.",
+  "detector_epsilons": [
+    0.1,
+    0.2,
+    0.3
+  ],
+  "detection_clean_adversarial_pairs_per_epsilon": 10000,
+  "detection_calibration_count_clean": 5000,
+  "detection_calibration_count_adversarial": 15000,
+  "detection_threshold_training_accuracy": 0.99775,
+  "detection_evaluation_count_clean": 5000,
+  "detection_evaluation_count_adversarial_per_epsilon": 5000,
+  "detection_threshold_selected_on_training_split": 0.34355780482292175,
+  "detection_false_positive_rate_clean": 0.004399999976158142,
+  "detection_rate_all_adversarial": 0.9985999464988708,
+  "detection_rate_successful_adversarial": 0.9987220168113708,
+  "detection_rates_by_epsilon": {
+    "0.1": {
+      "all_adversarial": 0.9991999864578247,
+      "successful_only": 0.9984543919563293,
+      "successful_count": 1294
+    },
+    "0.2": {
+      "all_adversarial": 0.9989999532699585,
+      "successful_only": 0.999234139919281,
+      "successful_count": 3917
+    },
+    "0.3": {
+      "all_adversarial": 0.9985999464988708,
+      "successful_only": 0.9987220168113708,
+      "successful_count": 4695
+    }
+  },
+  "detection_roc_auc": 0.99988444,
   "device": "cuda",
   "seed": 1234,
   "demo_example": {
@@ -28,7 +110,7 @@
     "fgsm_squeezed_prediction": 7,
     "clean_l1_score": 0.015656208619475365,
     "fgsm_l1_score": 1.4615346193313599,
-    "threshold": 0.09178183227777481,
+    "threshold": 0.34355780482292175,
     "flagged_as_adversarial": true
   }
 }

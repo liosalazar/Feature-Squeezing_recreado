@@ -1,49 +1,57 @@
-# Feature Squeezing — reproducción acotada
+# Reproducción acotada de Feature Squeezing
 
-Proyecto de reproducción de un experimento del artículo de Xu, Evans y Qi presentado en NDSS 2018. Reproduce el protocolo de MNIST con la CNN de siete capas, FGSM con ε = 0.3 y reducción de profundidad a 1 bit. La réplica se implementa en PyTorch a partir de la arquitectura y configuración publicadas en el artículo y en el código original.
+Este proyecto reproduce parcialmente el método de Xu, Evans y Qi (NDSS 2018). El experimento implementado cubre MNIST, el ataque FGSM y la reducción de profundidad de color a 1 bit. También incluye una evaluación del detector basado en la diferencia L1 entre predicciones. No es una reproducción completa del artículo.
 
-## Qué implementa
+## Qué hace el experimento
 
-1. Entrena en MNIST el modelo con la arquitectura y los hiperparámetros del repositorio original de los autores.
-2. Genera ejemplos FGSM sobre las imágenes de prueba con ε = 0.3; recorta los píxeles a [0, 1] y los cuantiza a 8 bits, como especifica la sección experimental del artículo.
-3. Compara la clasificación de la imagen atacada antes y después del filtro binario de 1 bit.
-4. Calcula la puntuación L1 entre las distribuciones softmax de la imagen y su versión filtrada.
-5. Usa 500 pares limpios/adversarios para calibración y 500 pares para validación. El umbral se fija con imágenes limpias de calibración para buscar una tasa de falsos positivos de 5%.
-6. Guarda métricas y una visualización limpia → FGSM → filtrada.
+1. Entrena en MNIST una CNN de siete capas basada en la arquitectura publicada, durante 100 épocas, con lotes de 128, Adadelta y suavizado de etiquetas.
+2. Selecciona las primeras 100 imágenes de prueba que el modelo clasifica correctamente.
+3. Aplica FGSM con ε = 0,3, limita los píxeles al intervalo [0, 1] y cuantiza las imágenes a 8 bits.
+4. Compara la clasificación de las imágenes atacadas antes y después de reducir su profundidad de color a 1 bit.
+5. Ejecuta además el detector FGSM con ε = 0,1, 0,2 y 0,3. Usa la primera mitad de los datos para seleccionar el umbral y la segunda mitad para validarlo.
 
-Esta es una reproducción acotada de las pruebas FGSM/1-bit del artículo, no de sus once variantes de ataque ni de CIFAR-10 e ImageNet. Se eligen los primeros 100 ejemplos de prueba clasificados correctamente, como indica el protocolo para la tabla de robustez. La corrida local alcanzó 99.25% de exactitud en todo MNIST; en los 100 ejemplos seleccionados, 3% se clasificaron correctamente bajo FGSM y 92% después del filtro de 1 bit. El artículo reporta 99.43% de exactitud limpia, 54% bajo FGSM y 92% con el filtro; en imágenes limpias filtradas reporta 99.33% (Tablas 1 y 3). La exactitud tras el filtro coincide, pero la exactitud bajo FGSM difiere. Por ello, no afirmamos una reproducción numérica completa: se reproduce el flujo y los parámetros de esa prueba con pesos reentrenados localmente. La corrida incluye esa diferencia para su análisis.
+## Resultados de esta ejecución
 
-## Ejecución
+- Exactitud limpia en todo el conjunto de prueba: 99,25 % (el artículo reporta 99,43 %).
+- En las 100 imágenes seleccionadas: exactitud con FGSM ε = 0,3 de 3 % antes del filtro y 92 % después de la reducción a 1 bit.
+- El artículo reporta 54 % antes del filtro y 92 % después. La exactitud local sin filtro no coincide con el artículo; no se modificó el ataque para forzar la coincidencia.
+- En ε = 0,5, la exactitud cae a 1 % sin filtro y 4 % después del filtro. La cuantización puede ayudar con ciertos niveles de perturbación, pero no garantiza recuperar la clase ante perturbaciones fuertes.
+- Detector: umbral 0,34356; falsos positivos en imágenes limpias de validación 0,44 %; detección de ataques exitosos ε = 0,3 de 99,87 % (4 689 de 4 695 ataques exitosos entre 5 000 entradas); AUC-ROC local 0,99988. Este AUC no es directamente comparable con el AUC conjunto del artículo.
 
-En Windows, inicia el experimento con doble clic en `EJECUTAR_EXPERIMENTO.bat`. El lanzador usa el entorno de Python disponible o crea uno local e instala las dependencias si hace falta. Al terminar, abre la visualización generada; las métricas se guardan en `results/`.
+Los resultados dependen del modelo entrenado localmente. No se obtuvo el checkpoint original de los autores; por ello se reentrenó la arquitectura en PyTorch y la diferencia de robustez frente al artículo sigue sin explicación definitiva.
 
-Desde la raíz del proyecto, instala las dependencias y ejecuta:
+## Alcance pendiente frente al artículo
+
+El artículo evalúa MNIST, CIFAR-10 e ImageNet, varias transformaciones y once variantes de ataque, incluidos FGSM, BIM, DeepFool y ataques dirigidos. Esta reproducción solo cubre MNIST, FGSM y el filtro de 1 bit, además del detector FGSM. Quedan fuera CIFAR-10, ImageNet, los otros ataques, el suavizado mediano y *non-local means*. Se usa PyTorch en lugar del stack original de TensorFlow/Keras.
+
+## Ejecución en Windows
+
+Instala Python 3.10 o posterior y ejecuta `EJECUTAR_EXPERIMENTO.bat`. El archivo crea un entorno virtual local e instala las dependencias si hace falta. La primera ejecución descarga MNIST y entrena durante 100 épocas; puede tardar. Después reutiliza `results/mnist_cnn_paper_architecture.pt` si el checkpoint está disponible.
+
+También se puede ejecutar desde PowerShell:
 
 ```powershell
 python -m pip install -r requirements.txt
 python .\src\replicate_mnist_fgsm.py
 ```
 
-La primera corrida descarga MNIST y entrena el modelo por 100 épocas. Las corridas siguientes reutilizan el checkpoint guardado localmente. Se usa GPU CUDA cuando está disponible; también se puede forzar CPU con `--device cpu`.
+Para limitar el número de ejemplos del experimento del detector, usa `--sample-count N`.
 
-## Resultados generados
+## Archivos principales
 
-- `results/metrics.json`: resultados, parámetros y alcance de la reproducción.
-- `results/metrics.csv`: métricas en formato tabular.
-- `results/training_history.csv`: pérdida y exactitud por época.
-- `results/mnist_cnn_paper_architecture.pt`: checkpoint local; no subir a Git.
-- `results/mnist_fgsm_feature_squeezing.png`: ejemplo visual.
+- `src/replicate_mnist_fgsm.py`: arquitectura, entrenamiento, ataque, filtro y mediciones.
+- `results/metrics.json` y `results/metrics.csv`: resultados numéricos.
+- `results/mnist_fgsm_feature_squeezing.png`: ejemplo visual de una imagen limpia, atacada y filtrada.
+- `results/mnist_fgsm_epsilon_sweep.png`: exactitud antes y después del filtro para ε entre 0 y 1.
+- `results/training_history.csv`: métricas de entrenamiento por época.
+- `results/mnist_cnn_paper_architecture.pt`: checkpoint local; no representa pesos oficiales de los autores.
+- `assets/workflow_fig1_crop.png`: recorte de la figura de workflow del artículo.
 
-En la corrida local, la exactitud limpia de prueba fue 99.25%. En los 100 ejemplos de robustez seleccionados, los aciertos bajo FGSM fueron 3% sin el filtro y 92% tras el filtro. Para el detector, se calibró con 500 imágenes limpias; en validación se obtuvo FPR de 6.8%, tasa de detección de ataques exitosos de 100% y AUC de 0.999972. La figura con el 7 muestra un caso individual, no el resultado agregado.
+## Fuentes
 
-## Fuentes primarias
+- Xu, W., Evans, D., & Qi, Y. (2018). *Feature Squeezing: Detecting Adversarial Examples in Deep Neural Networks*. NDSS 2018. https://dev.ndss-symposium.org/wp-content/uploads/2018/02/ndss2018_03A-4_Xu_paper.pdf
+- Repositorio original de los autores: https://github.com/QData/FeatureSqueezing
+- Arquitectura MNIST de CleverHans v1.0.0: https://github.com/cleverhans-lab/cleverhans/blob/v1.0.0/cleverhans/utils_mnist.py
 
-- Xu, W., Evans, D., & Qi, Y. (2018). *Feature Squeezing: Detecting Adversarial Examples in Deep Neural Networks*. Network and Distributed System Security Symposium (NDSS).
-- Artículo completo: https://arxiv.org/abs/1704.01155
-- Repositorio original: https://github.com/QData/FeatureSqueezing
-- Arquitectura MNIST de CleverHans v1.0.0 utilizada por el artículo: https://github.com/cleverhans-lab/cleverhans/blob/v1.0.0/cleverhans/utils_mnist.py
-- Figura 1 original: incluida en la presentación con atribución al artículo.
 
-## Nota de fidelidad
-
-La implementación traslada a PyTorch la arquitectura, normalización, suavizado de etiquetas, optimizador, hiperparámetros, filtro de 1 bit y construcción FGSM documentados en el artículo y el repositorio original. El artículo indica que las imágenes adversarias se recortan a [0,1] y cuantizan a 8 bits; el helper publicado no muestra ese paso, así que la réplica sigue la descripción del artículo. Se moderniza TensorFlow/Keras de 2018 a PyTorch para ejecutar el protocolo en el entorno disponible. Se entrena localmente la CNN con la configuración del paper; no se usa el checkpoint de los autores. El artículo publica código y enlace de descarga del modelo, pero el enlace del checkpoint respondió con acceso denegado en esta sesión. El SwinIR y sus resultados no se reutilizan.
+Revisión del 19/11/2026. Se corrigió el cálculo de AUC para empates y el texto dinámico de decisión de la figura. El AUC guardado corresponde a la corrida anterior y está pendiente de recálculo. Se verificaron sintaxis y cuatro casos de AUC. La ejecución completa de PyTorch sigue pendiente en esta PC.
