@@ -1,0 +1,2 @@
+detector,threshold,clean_calibration_n,clean_evaluation_n,false_positives,fpr,successful_attack_n,true_positives,tpr,auc_all_attempts,auc_successful_attacks
+"bit_depth_5,median_filter_2_2,non_local_means_color_11_3_4",1.1704775094985962,92,108,11,0.10185185185185185,428,374,0.8738317757009346,0.9373952572481984,0.9449636552440291

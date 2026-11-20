@@ -1,4 +1,10 @@
-# Reproducción acotada de Feature Squeezing
+# Feature Squeezing
+
+La evaluación con los checkpoints de referencia abarcó MNIST, CIFAR-10 e ImageNet. La [comparación de ImageNet con el artículo](results/official_imagenet/COMPARACION.md) reúne las métricas para el pitch, el tamaño de cada muestra y la comprobación del umbral.
+
+## Experimento exploratorio anterior
+
+La documentación desde aquí describe la primera ejecución con una CNN entrenada localmente. La evaluación con los checkpoints publicados es una ejecución posterior.
 
 Este proyecto reproduce parcialmente el método de Xu, Evans y Qi (NDSS 2018). El experimento implementado cubre MNIST, el ataque FGSM y la reducción de profundidad de color a 1 bit. También incluye una evaluación del detector basado en la diferencia L1 entre predicciones. No es una reproducción completa del artículo.
 

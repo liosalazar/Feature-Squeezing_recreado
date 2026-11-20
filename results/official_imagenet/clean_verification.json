@@ -1,0 +1,14 @@
+{
+  "dataset": "ILSVRC/imagenet-1k",
+  "dataset_revision": "4603483700ee984ea9debe3ddbfdeae86f6489eb",
+  "model": "MobileNet-v1 1.0/224, checkpoint de EvadeML-Zoo",
+  "validation_scope": "first_200_original_ids",
+  "n": 200,
+  "correct_top1": 139,
+  "accuracy_top1": 0.695,
+  "selected_count": 100,
+  "selection_hash": "a2749",
+  "expected_selection_hash": "a2749",
+  "matches_reference_selection": true,
+  "input_md5": "f9c9dd030f583c83c8fa6177808f8d5f"
+}

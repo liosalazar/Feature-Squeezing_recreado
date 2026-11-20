@@ -1,0 +1,5 @@
+filter,n,accuracy
+none,200,0.695
+bit_depth_5,200,0.7
+median_filter_2_2,200,0.65
+non_local_means_color_11_3_4,200,0.66
